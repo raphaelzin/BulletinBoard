@@ -14,8 +14,6 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
     /// Whether a panning interaction is in progress.
     var isInteractionInProgress = false
 
-    var panGestureRecognizer: UIPanGestureRecognizer?
-
     // MARK: - State
 
     private var isFinished = false
@@ -30,9 +28,6 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
         return viewController.contentView
     }
 
-    private var activityIndicatorView: UIView {
-        return viewController.activityIndicator
-    }
 
     // MARK: - Preparation
 
@@ -52,7 +47,6 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
         panGesture.cancelsTouchesInView = false
         panGesture.delegate = self
 
-        self.panGestureRecognizer = panGesture
         contentView.addGestureRecognizer(panGesture)
 
     }
@@ -82,9 +76,7 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
 
             gestureRecognizer.setTranslation(.zero, in: contentView)
 
-            let isCompactWidth = viewController.traitCollection.horizontalSizeClass == .compact
-
-            guard viewController.isDismissable && isCompactWidth else {
+            guard viewController.isDismissable else {
                 isInteractionInProgress = false
                 return
             }
@@ -103,23 +95,30 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
 
         case .changed:
 
+            let translation = gestureRecognizer.translation(in: contentView).y
+
             guard !isFinished else {
                 return
             }
 
-            let translation = gestureRecognizer.translation(in: contentView)
-            let verticalTranslation = translation.y
             isFinished = false
 
-            guard (verticalTranslation > 0) && isInteractionInProgress else {
+            guard (translation > 0) && isInteractionInProgress else {
                 update(0)
-                updateCardViews(forTranslation: translation)
+                updateCardViews(forVerticalTranslation: translation)
                 return
             }
 
             snapshotView?.transform = .identity
 
-            let adaptativeTranslation = self.adaptativeTranslation(for: verticalTranslation, elasticThreshold: elasticThreshold)
+            guard translation <= dismissThreshold else {
+                isFinished = true
+                isInteractionInProgress = false
+                finish()
+                return
+            }
+
+            let adaptativeTranslation = self.adaptativeTranslation(for: translation, elasticThreshold: elasticThreshold)
             let newPercentage = (adaptativeTranslation / dismissThreshold) * trackScreenPercentage
 
             guard currentPercentage != newPercentage else {
@@ -130,35 +129,23 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
             update(currentPercentage)
 
         case .cancelled, .failed:
-
             isInteractionInProgress = false
 
             if !isFinished {
                 resetCardViews()
             }
 
-            panGestureRecognizer?.isEnabled = true
-
         case .ended:
 
-            guard isInteractionInProgress else {
-                resetCardViews()
-                isFinished = false
-                return
-            }
+            isInteractionInProgress = false
 
-            let translation = gestureRecognizer.translation(in: contentView).y
-
-            if translation >= dismissThreshold {
-                isFinished = true
-                isInteractionInProgress = false
-                finish()
-            } else {
+            if !isFinished {
                 resetCardViews()
                 cancel()
-                isFinished = false
             }
 
+            isFinished = false
+ 
         default:
             break
         }
@@ -186,41 +173,28 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
 
     }
 
-    private func transform(forTranslation translation: CGPoint) -> CGAffineTransform {
+    private func transform(forVerticalTranslation translation: CGFloat) -> CGAffineTransform {
 
         let translationFactor: CGFloat = 1/3
         var adaptedTranslation = translation
 
-        // Vertical
-
-        if translation.y < 0 || !(isInteractionInProgress) {
-            adaptedTranslation.y = elasticTranslationCurve(translation.y, translationFactor)
+        if translation < 0 || !(viewController.isDismissable) {
+            adaptedTranslation = elasticTranslationCurve(translation, translationFactor)
         }
 
-        let yTransform = adaptedTranslation.y * translationFactor
-
-        if viewController.traitCollection.horizontalSizeClass == .compact {
-            return CGAffineTransform(translationX: 0, y: yTransform)
-        }
-
-        // Horizontal
-
-        adaptedTranslation.x = elasticTranslationCurve(translation.x, translationFactor)
-        let xTransform = adaptedTranslation.x * translationFactor
-
-        return CGAffineTransform(translationX: xTransform, y: yTransform)
+        let yTransform = adaptedTranslation * translationFactor
+        return CGAffineTransform(translationX: 0, y: yTransform)
 
     }
 
     // MARK: - Position Management
 
-    private func updateCardViews(forTranslation translation: CGPoint) {
+    private func updateCardViews(forVerticalTranslation translation: CGFloat) {
 
-        let transform = self.transform(forTranslation: translation)
+        let transform = self.transform(forVerticalTranslation: translation)
 
         snapshotView?.transform = transform
         contentView.transform = transform
-        activityIndicatorView.transform = transform
 
     }
 
@@ -231,7 +205,6 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
         let animations = {
             self.snapshotView?.transform = .identity
             self.contentView.transform = .identity
-            self.activityIndicatorView.transform = .identity
         }
 
         viewController.backgroundView.show()
@@ -240,20 +213,6 @@ class BulletinSwipeInteractionController: UIPercentDrivenInteractiveTransition, 
         UIView.animate(withDuration: 0.15, delay: 0, options: options, animations: animations) { _ in
             self.update(0)
             self.cancel()
-        }
-
-    }
-
-    // MARK: - Cancellation
-
-    /**
-     * Resets the view if needed.
-     */
-
-    func cancelIfNeeded() {
-
-        if panGestureRecognizer?.state == .changed {
-            panGestureRecognizer?.isEnabled = false
         }
 
     }

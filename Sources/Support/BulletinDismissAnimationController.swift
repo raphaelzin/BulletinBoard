@@ -23,9 +23,6 @@ class BulletinDismissAnimationController: NSObject, UIViewControllerAnimatedTran
         let rootView = fromVC.view!
         let contentView = fromVC.contentView
         let backgroundView = fromVC.backgroundView!
-        let activityIndicatorView = fromVC.activityIndicator
-        let snapshotActivityIndicator = ActivityIndicator()
-        snapshotActivityIndicator.startAnimating()
 
         // Take Snapshot
 
@@ -34,24 +31,9 @@ class BulletinDismissAnimationController: NSObject, UIViewControllerAnimatedTran
             return
         }
 
-        snapshotActivityIndicator.translatesAutoresizingMaskIntoConstraints = false
-
-        snapshot.addSubview(snapshotActivityIndicator)
-        snapshotActivityIndicator.topAnchor.constraint(equalTo: snapshot.topAnchor).isActive = true
-        snapshotActivityIndicator.leftAnchor.constraint(equalTo: snapshot.leftAnchor).isActive = true
-        snapshotActivityIndicator.rightAnchor.constraint(equalTo: snapshot.rightAnchor).isActive = true
-        snapshotActivityIndicator.bottomAnchor.constraint(equalTo: snapshot.bottomAnchor).isActive = true
-
-        snapshotActivityIndicator.activityIndicatorViewStyle = .whiteLarge
-        snapshotActivityIndicator.color = .black
-        snapshotActivityIndicator.isUserInteractionEnabled = false
-
-        snapshotActivityIndicator.alpha = activityIndicatorView.alpha
-
-        rootView.insertSubview(snapshot, aboveSubview: contentView)
+        rootView.addSubview(snapshot)
         snapshot.frame = contentView.frame
         contentView.isHidden = true
-        activityIndicatorView.isHidden = true
 
         fromVC.prepareForDismissal(displaying: snapshot)
 
@@ -74,7 +56,6 @@ class BulletinDismissAnimationController: NSObject, UIViewControllerAnimatedTran
                 fromVC.view.removeFromSuperview()
             } else {
                 contentView.isHidden = false
-                activityIndicatorView.isHidden = false
                 snapshot.removeFromSuperview()
             }
 
